@@ -1,5 +1,3 @@
-param([switch]$ElevatedSession);
-
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $powerShellExecutable = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName;
     try {
@@ -10,20 +8,12 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
             New-Item -ItemType Directory -Path($scriptDirectory) -Force | Out-Null;
             Invoke-RestMethod -Uri('https://raw.githubusercontent.com/zpratikpathak/Extension-Cleaner/home/remove.ps1') -OutFile($scriptPath);
         }
-        Start-Process -FilePath $powerShellExecutable -Verb RunAs -WorkingDirectory(Split-Path -Parent $scriptPath) -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -ElevatedSession" -ErrorAction Stop;
+        Start-Process -FilePath $powerShellExecutable -Verb RunAs -WorkingDirectory(Split-Path -Parent $scriptPath) -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -ErrorAction Stop;
     } catch {
         Write-Error("Administrator access is required. $($_.Exception.Message)");
         exit 1;
     }
     exit;
-}
-
-function Wait-ForUserExit {
-    if ($script:ElevatedSession) {
-        Write-Host('');
-        Write-Host('Press any key to close this window...') -ForegroundColor DarkGray;
-        [Console]::ReadKey($true) | Out-Null;
-    }
 }
 
 Clear-Host;
@@ -168,15 +158,11 @@ $browserConfigs.ForEach({
 Write-Host(' ' * $uiWidth) -NoNewline;
 [Console]::CursorLeft = 0;
 
-if ($foundItems.Count -eq 0) {
-    Write-Host("`nNo external or policy-installed extensions were found.") -ForegroundColor Green;
-    [Console]::CursorVisible = $true;
-    Wait-ForUserExit;
-    return;
-}
-
 $currentIndex = 0;
 $selectedState = New-Object bool[] $foundItems.Count;
+$actionMessage = if ($foundItems.Count -eq 0) { 'No external or policy-installed extensions were found.' } else { 'Ready.' };
+$actionColor = if ($foundItems.Count -eq 0) { 'Green' } else { 'DarkGray' };
+$renderedLineCount = 0;
 $menuTop = [Console]::CursorTop;
 [Console]::CursorVisible = $false;
 
@@ -184,7 +170,7 @@ function Draw-Menu {
     [Console]::SetCursorPosition(0, $menuTop);
     $selectedCount = @($selectedState | Where-Object { $_ }).Count;
     $statusText = "$script:iconExtensions EXTENSIONS   $($foundItems.Count) found across $($browserConfigs.Count) browsers   $selectedCount selected";
-    $controlsText = "$script:iconKeyboard  [UP/DOWN] Move   [SPACE] Select   [ENTER] Remove   [ESC/CTRL+C] Exit";
+    $controlsText = "$script:iconKeyboard  [UP/DOWN] Move   [SPACE] Select   [ENTER] Remove   [CTRL+C] Exit";
     Write-Host(Format-CenteredLine $statusText) -ForegroundColor Cyan;
     Write-Host(Format-CenteredLine $controlsText) -ForegroundColor DarkGray;
     Write-Host($script:separatorLine) -ForegroundColor DarkCyan;
@@ -212,28 +198,77 @@ function Draw-Menu {
         else { Write-Host($line) -ForegroundColor Gray; }
     }
     Write-Host($script:separatorLine) -ForegroundColor DarkCyan;
+    Write-Host(Format-CenteredLine $script:actionMessage) -ForegroundColor $script:actionColor;
+
+    $currentLineCount = $foundItems.Count + 6;
+    for ($lineIndex = $currentLineCount; $lineIndex -lt $script:renderedLineCount; $lineIndex++) {
+        Write-Host(' ' * $script:uiWidth);
+    }
+    $script:renderedLineCount = $currentLineCount;
+}
+
+function Remove-SelectedExtensions {
+    $selectedIndexes = @(for ($i = 0; $i -lt $foundItems.Count; $i++) {
+        if ($selectedState[$i]) { $i; }
+    });
+
+    if ($selectedIndexes.Count -eq 0) {
+        $script:actionMessage = 'No extensions selected.';
+        $script:actionColor = 'Yellow';
+        Draw-Menu;
+        return;
+    }
+
+    $removedIndexes = [System.Collections.Generic.List[int]]::new();
+    $failedCount = 0;
+    foreach ($index in $selectedIndexes) {
+        $target = $foundItems[$index];
+        try {
+            if ($target.Type -eq 'Registry Key') { Remove-Item($target.Path) -Recurse -Force -ErrorAction Stop; }
+            elseif ($target.Type -eq 'Policy Property') { Remove-ItemProperty($target.Path) -Name($target.Value) -Force -ErrorAction Stop; }
+            $removedIndexes.Add($index);
+        } catch {
+            $failedCount++;
+        }
+    }
+
+    for ($index = $removedIndexes.Count - 1; $index -ge 0; $index--) {
+        $foundItems.RemoveAt($removedIndexes[$index]);
+    }
+    $script:selectedState = New-Object bool[] $foundItems.Count;
+    $script:currentIndex = if ($foundItems.Count -eq 0) { 0 } else { [Math]::Min($currentIndex, $foundItems.Count - 1) };
+
+    if ($failedCount -eq 0) {
+        $script:actionMessage = "Successfully removed $($removedIndexes.Count) item(s).";
+        $script:actionColor = 'Green';
+    } elseif ($removedIndexes.Count -gt 0) {
+        $script:actionMessage = "Removed $($removedIndexes.Count) item(s); $failedCount failed.";
+        $script:actionColor = 'Yellow';
+    } else {
+        $script:actionMessage = "Failed to remove $failedCount item(s).";
+        $script:actionColor = 'Red';
+    }
+    Draw-Menu;
 }
 
 Draw-Menu;
 
 $keepRunning =$true;
-$cancelled = $false;
 $previousTreatControlCAsInput = [Console]::TreatControlCAsInput;
 [Console]::TreatControlCAsInput = $true;
 try {
     while ($keepRunning) {
         $keyInfo = [Console]::ReadKey($true);
         $isControlC = $keyInfo.Key -eq [ConsoleKey]::C -and ($keyInfo.Modifiers -band [ConsoleModifiers]::Control);
-        if ($isControlC -or $keyInfo.Key -eq [ConsoleKey]::Escape) {
-            $cancelled = $true;
+        if ($isControlC) {
             $keepRunning = $false;
             continue;
         }
         switch ($keyInfo.Key) {
-            ([ConsoleKey]::UpArrow) { if ($currentIndex -gt 0) {$currentIndex--; }; Draw-Menu; }
-            ([ConsoleKey]::DownArrow) { if ($currentIndex -lt ($foundItems.Count - 1)) {$currentIndex++; }; Draw-Menu; }
-            ([ConsoleKey]::Spacebar) { $selectedState[$currentIndex] = -not $selectedState[$currentIndex]; Draw-Menu; }
-            ([ConsoleKey]::Enter) { $keepRunning =$false; }
+            ([ConsoleKey]::UpArrow) { if ($foundItems.Count -gt 0 -and $currentIndex -gt 0) {$currentIndex--; }; Draw-Menu; }
+            ([ConsoleKey]::DownArrow) { if ($foundItems.Count -gt 0 -and $currentIndex -lt ($foundItems.Count - 1)) {$currentIndex++; }; Draw-Menu; }
+            ([ConsoleKey]::Spacebar) { if ($foundItems.Count -gt 0) { $selectedState[$currentIndex] = -not $selectedState[$currentIndex]; }; Draw-Menu; }
+            ([ConsoleKey]::Enter) { Remove-SelectedExtensions; }
         }
     }
 } finally {
@@ -241,27 +276,4 @@ try {
     [Console]::CursorVisible = $true;
 }
 
-if ($cancelled) {
-    Write-Host("`nOperation cancelled. Nothing was removed.") -ForegroundColor Yellow;
-    $ProgressPreference = 'Continue';
-    Wait-ForUserExit;
-    return;
-}
-
-Write-Host("`n");
-$countRemoved = 0;
-for ($i = 0; $i -lt $foundItems.Count; $i++) {
-    if ($selectedState[$i]) {
-        $target = $foundItems[$i];
-        try {
-            if ($target.Type -eq "Registry Key") { Remove-Item($target.Path) -Recurse -Force -ErrorAction Stop; }
-            elseif ($target.Type -eq "Policy Property") { Remove-ItemProperty($target.Path) -Name($target.Value) -Force -ErrorAction Stop; }
-            Write-Host("[DELETED] $($target.Name) ($($target.Id))") -ForegroundColor Green;
-            $countRemoved++;
-        } catch { Write-Host("[ERROR] Failed to delete $($target.Id): $($_.Exception.Message)") -ForegroundColor Red; }
-    }
-}
-if ($countRemoved -gt 0) { Write-Host("`nSuccessfully removed $countRemoved item(s).") -ForegroundColor Green; }
-else { Write-Host("No items were selected for removal.") -ForegroundColor Yellow; }
 $ProgressPreference = 'Continue';
-Wait-ForUserExit;

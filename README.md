@@ -35,7 +35,7 @@ Windows will display a User Account Control prompt because administrator access 
 - Checks the appropriate browser store only when a name cannot be found locally.
 - Provides an interactive keyboard-driven selection menu.
 - Automatically requests administrator privileges when required.
-- Supports safe cancellation with `Esc` or `Ctrl+C`.
+- Keeps the menu active after removals and exits with `Ctrl+C`.
 
 ## Manual Usage
 
@@ -56,8 +56,8 @@ The script automatically relaunches itself as administrator when necessary.
 | --- | --- |
 | `Up` / `Down` | Move through detected extensions |
 | `Space` | Select or deselect an extension |
-| `Enter` | Remove selected extensions |
-| `Esc` / `Ctrl+C` | Exit without removing anything |
+| `Enter` | Remove selected extensions and keep the menu open |
+| `Ctrl+C` | Exit the cleaner |
 
 ## How It Works
 
