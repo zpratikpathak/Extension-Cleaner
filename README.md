@@ -5,14 +5,26 @@
 <h1 align="center">Extension Cleaner</h1>
 
 <p align="center">
-  An interactive PowerShell utility for finding and removing registry-installed and policy-forced extensions from Chrome, Edge, and Brave on Windows.
+  Are unwanted extensions being installed automatically even after you remove the software that added them? Extension Cleaner helps you find and remove the leftover registry entries and policies responsible.
 </p>
-
-Are unwanted extensions being installed automatically even after you remove the software that added them? Extension Cleaner helps you find and remove the leftover registry entries and policies responsible.
 
 <p align="center">
   <a href="https://github.com/zpratikpathak/Extension-Cleaner">GitHub Repository</a>
 </p>
+
+<p align="center">
+  An interactive PowerShell utility for finding and removing registry-installed and policy-forced extensions from Chrome, Edge, and Brave on Windows.
+</p>
+
+## Quick Start
+
+Open PowerShell, paste this one-line command, and press Enter:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/zpratikpathak/Extension-Cleaner/home/remove.ps1 | iex"
+```
+
+Windows will display a User Account Control prompt because administrator access is required to remove machine-level registry entries.
 
 ## Features
 
@@ -25,25 +37,15 @@ Are unwanted extensions being installed automatically even after you remove the 
 - Automatically requests administrator privileges when required.
 - Supports safe cancellation with `Esc` or `Ctrl+C`.
 
-## Quick Start
-
-Open PowerShell, paste this one-line command, and press Enter:
-
-```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/zpratikpathak/Extension-Cleaner/home/remove.ps1 | iex"
-```
-
-Windows will display a User Account Control prompt because administrator access is required to remove machine-level registry entries.
-
-> [!IMPORTANT]
-> The quick-start command will work after `remove.ps1` has been pushed to the repository's `home` branch. Review remote scripts before running it with elevated privileges.
-
 ## Manual Usage
 
+1. Download the [Extension Cleaner ZIP archive](https://github.com/zpratikpathak/Extension-Cleaner/archive/refs/heads/home.zip).
+2. Extract the downloaded ZIP file.
+3. Open a terminal inside the extracted `Extension-Cleaner-home` folder.
+4. Run:
+
 ```powershell
-git clone https://github.com/zpratikpathak/Extension-Cleaner.git
-cd Extension-Cleaner
-.\remove.ps1
+powershell -ExecutionPolicy Bypass -c ".\remove.ps1"
 ```
 
 The script automatically relaunches itself as administrator when necessary.
