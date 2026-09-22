@@ -1,3 +1,5 @@
+param([switch]$ElevatedSession);
+
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $powerShellExecutable = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName;
     try {
@@ -8,12 +10,20 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
             New-Item -ItemType Directory -Path($scriptDirectory) -Force | Out-Null;
             Invoke-RestMethod -Uri('https://raw.githubusercontent.com/zpratikpathak/Extension-Cleaner/home/remove.ps1') -OutFile($scriptPath);
         }
-        Start-Process -FilePath $powerShellExecutable -Verb RunAs -WorkingDirectory(Split-Path -Parent $scriptPath) -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -ErrorAction Stop;
+        Start-Process -FilePath $powerShellExecutable -Verb RunAs -WorkingDirectory(Split-Path -Parent $scriptPath) -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -ElevatedSession" -ErrorAction Stop;
     } catch {
         Write-Error("Administrator access is required. $($_.Exception.Message)");
         exit 1;
     }
     exit;
+}
+
+function Wait-ForUserExit {
+    if ($script:ElevatedSession) {
+        Write-Host('');
+        Write-Host('Press any key to close this window...') -ForegroundColor DarkGray;
+        [Console]::ReadKey($true) | Out-Null;
+    }
 }
 
 Clear-Host;
@@ -158,7 +168,12 @@ $browserConfigs.ForEach({
 Write-Host(' ' * $uiWidth) -NoNewline;
 [Console]::CursorLeft = 0;
 
-if ($foundItems.Count -eq 0) { Write-Host("`nNo external or policy-installed extensions were found.") -ForegroundColor Green; [Console]::CursorVisible = $true; return; }
+if ($foundItems.Count -eq 0) {
+    Write-Host("`nNo external or policy-installed extensions were found.") -ForegroundColor Green;
+    [Console]::CursorVisible = $true;
+    Wait-ForUserExit;
+    return;
+}
 
 $currentIndex = 0;
 $selectedState = New-Object bool[] $foundItems.Count;
@@ -229,6 +244,7 @@ try {
 if ($cancelled) {
     Write-Host("`nOperation cancelled. Nothing was removed.") -ForegroundColor Yellow;
     $ProgressPreference = 'Continue';
+    Wait-ForUserExit;
     return;
 }
 
@@ -248,3 +264,4 @@ for ($i = 0; $i -lt $foundItems.Count; $i++) {
 if ($countRemoved -gt 0) { Write-Host("`nSuccessfully removed $countRemoved item(s).") -ForegroundColor Green; }
 else { Write-Host("No items were selected for removal.") -ForegroundColor Yellow; }
 $ProgressPreference = 'Continue';
+Wait-ForUserExit;
