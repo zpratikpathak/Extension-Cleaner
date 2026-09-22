@@ -1,3 +1,14 @@
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $powerShellExecutable = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName;
+    try {
+        Start-Process -FilePath $powerShellExecutable -Verb RunAs -WorkingDirectory $PSScriptRoot -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -ErrorAction Stop;
+    } catch {
+        Write-Error("Administrator access is required. $($_.Exception.Message)");
+        exit 1;
+    }
+    exit;
+}
+
 Clear-Host;
 $ProgressPreference = 'SilentlyContinue';
 $spinnerChars = @('|', '/', '-', '\');$spinCount = 0;
