@@ -1,7 +1,14 @@
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $powerShellExecutable = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName;
     try {
-        Start-Process -FilePath $powerShellExecutable -Verb RunAs -WorkingDirectory $PSScriptRoot -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -ErrorAction Stop;
+        $scriptPath = $PSCommandPath;
+        if (-not $scriptPath) {
+            $scriptDirectory = Join-Path([IO.Path]::GetTempPath()) 'Extension-Cleaner';
+            $scriptPath = Join-Path($scriptDirectory) 'remove.ps1';
+            New-Item -ItemType Directory -Path($scriptDirectory) -Force | Out-Null;
+            Invoke-RestMethod -Uri('https://raw.githubusercontent.com/zpratikpathak/Extension-Cleaner/home/remove.ps1') -OutFile($scriptPath);
+        }
+        Start-Process -FilePath $powerShellExecutable -Verb RunAs -WorkingDirectory(Split-Path -Parent $scriptPath) -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -ErrorAction Stop;
     } catch {
         Write-Error("Administrator access is required. $($_.Exception.Message)");
         exit 1;
